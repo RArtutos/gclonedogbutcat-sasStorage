@@ -6,6 +6,8 @@ name: build
 
 # Trigger the workflow on push or pull request
 on:
+  workflow_dispatch:
+  
   push:
     tags:
       - '**'
