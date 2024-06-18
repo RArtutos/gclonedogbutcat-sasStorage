@@ -202,7 +202,7 @@ jobs:
         # Deploy binaries if enabled in config && not a PR && not a fork
         if: matrix.deploy && github.head_ref == '' && github.repository == 'dogbutcat/gclone'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.THE_TOKEN }}
 
   # lint:
   #   if: ${{ github.event.inputs.manual == 'true' || (github.repository == 'dogbutcat/gclone' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name)) }}
@@ -334,6 +334,6 @@ jobs:
       - name: Upload artifacts
         run: |
           make ci_upload
-        if: github.head_ref == '' && github.repository == 'dogbutcat/gclone'
+        if: github.head_ref == '' && github.repository == 'RArtutos/gclone-SAS'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.THE_TOKEN }}
