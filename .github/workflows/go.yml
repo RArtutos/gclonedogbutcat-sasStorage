@@ -200,7 +200,7 @@ jobs:
         # make compile_all
         # working-directory: '$(modulePath)'
         # Deploy binaries if enabled in config && not a PR && not a fork
-        if: matrix.deploy && github.head_ref == '' && github.repository == 'dogbutcat/gclone'
+        if: matrix.deploy && github.head_ref == '' && github.repository == 'RArtutos/gclone-SAS'
         env:
           GITHUB_TOKEN: ${{ secrets.THE_TOKEN }}
 
@@ -234,7 +234,7 @@ jobs:
       #   run: govulncheck ./...
 
   android:
-    if: ${{ github.repository == 'dogbutcat/gclone' || github.event.inputs.manual }}
+    if: ${{ github.repository == 'RArtutos/gclone-SAS' || github.event.inputs.manual }}
     timeout-minutes: 30
     name: "android-all"
     runs-on: ubuntu-latest
