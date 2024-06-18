@@ -190,7 +190,7 @@ func CheckVersion(ctx context.Context) {
 	fmt.Printf("yours:  %-13s\n", fs.Version)
 	printVersion(
 		"latest",
-		"https://github.com/dogbutcat/gclone/releases/latest",
+		"https://github.com/RArtutos/gclone-SAS/releases/latest",
 	)
 	// printVersion(
 	// 	"beta",
