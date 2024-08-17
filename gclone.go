@@ -4,7 +4,7 @@
 package main
 
 import (
-	_ "github.com/dogbutcat/gclone/backend/all" // import all backends
+	_ "github.com/divyam234/rclone/backend/all" // import all backends
 	"github.com/rclone/rclone/cmd"
 	_ "github.com/dogbutcat/gclone/cmd/all"    // import all commands
 	_ "github.com/rclone/rclone/lib/plugin" // import plugins
