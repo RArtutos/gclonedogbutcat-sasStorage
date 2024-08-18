@@ -1,33 +1,30 @@
 name: Update go.sum
 
 on:
-  push:
-    branches:
-      - main  # o el nombre de la rama en la que estás trabajando
+  workflow_dispatch:  # Permite ejecutar el flujo de trabajo manualmente
 
 jobs:
   update-go-sum:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: '1.20'  # o la versión de Go que necesites
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.20'
 
-    - name: Update go.sum
-      run: |
-        go mod tidy
-        go mod download
-        go mod verify
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Commit and push changes
-      uses: EndBug/add-and-commit@v9
-      with:
-        add: 'go.sum'
-        message: 'Update go.sum'
-        author_name: 'github-actions'
-        author_email: 'github-actions@github.com'
+      - name: Update go.sum
+        run: go mod tidy
+
+      - name: Commit and push changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'go.sum'
+          message: 'Update go.sum'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
