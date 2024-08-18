@@ -178,7 +178,7 @@ require (
 )
 
 require (
-	github.com/RArtutos/gclone-SAS/backend/teldrive v0.0.1 // indirect
+	github.com/RArtutos/gclone-SAS/backend/teldrive v0.0.1
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
