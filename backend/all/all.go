@@ -3,8 +3,7 @@ package all
 
 import (
 	// Active file systems
-	_ "github.com/gclone-SAS/gclone/backend/drive"
-	_ "github.com/gclone-SAS/gclone/backend/teldrive"
+	_ "github.com/dogbutcat/gclone/backend/drive"
 	_ "github.com/rclone/rclone/backend/alias"
 	_ "github.com/rclone/rclone/backend/azureblob"
 	_ "github.com/rclone/rclone/backend/azurefiles"
