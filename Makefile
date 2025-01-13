@@ -36,30 +36,31 @@ ifdef BETA_SUBDIR
 endif
 BETA_PATH := $(BRANCH_PATH)$(TAG)$(BETA_SUBDIR)
 BETA_URL := https://beta.rclone.org/$(BETA_PATH)/
-BETA_UPLOAD_ROOT := memstore:beta-rclone-org
+BETA_UPLOAD_ROOT := beta.rclone.org:
 BETA_UPLOAD := $(BETA_UPLOAD_ROOT)/$(BETA_PATH)
 # Pass in GOTAGS=xyz on the make command line to set build tags
 ifdef GOTAGS
 BUILDTAGS=-tags "$(GOTAGS)"
 LINTTAGS=--build-tags "$(GOTAGS)"
 endif
+LDFLAGS=--ldflags "-s -X github.com/rclone/rclone/fs.Version=$(TAG)"
 
-.PHONY: gclone test_all vars version
+.PHONY: rclone test_all vars version
 
-gclone:
+rclone:
 ifeq ($(GO_OS),windows)
 	go run bin/resource_windows.go -version $(TAG) -syso resource_windows_`go env GOARCH`.syso
 endif
-	go build -v --ldflags "-s -X github.com/rclone/rclone/fs.Version=$(TAG)" $(BUILDTAGS) $(BUILD_ARGS)
+	go build -v $(LDFLAGS) $(BUILDTAGS) $(BUILD_ARGS)
 ifeq ($(GO_OS),windows)
 	rm resource_windows_`go env GOARCH`.syso
 endif
 	mkdir -p `go env GOPATH`/bin/
-	cp -av gclone`go env GOEXE` `go env GOPATH`/bin/gclone`go env GOEXE`.new
-	mv -v `go env GOPATH`/bin/gclone`go env GOEXE`.new `go env GOPATH`/bin/gclone`go env GOEXE`
+	cp -av rclone`go env GOEXE` `go env GOPATH`/bin/rclone`go env GOEXE`.new
+	mv -v `go env GOPATH`/bin/rclone`go env GOEXE`.new `go env GOPATH`/bin/rclone`go env GOEXE`
 
 test_all:
-	go install --ldflags "-s -X github.com/rclone/rclone/fs.Version=$(TAG)" $(BUILDTAGS) $(BUILD_ARGS) github.com/rclone/rclone/fstest/test_all
+	go install $(LDFLAGS) $(BUILDTAGS) $(BUILD_ARGS) github.com/rclone/rclone/fstest/test_all
 
 vars:
 	@echo SHELL="'$(SHELL)'"
@@ -73,6 +74,10 @@ btest:
 	@echo "[$(TAG)]($(BETA_URL)) on branch [$(BRANCH)](https://github.com/rclone/rclone/tree/$(BRANCH)) (uploaded in 15-30 mins)" | xclip -r -sel clip
 	@echo "Copied markdown of beta release to clip board"
 
+btesth:
+	@echo "<a href="$(BETA_URL)">$(TAG)</a> on branch <a href="https://github.com/rclone/rclone/tree/$(BRANCH)">$(BRANCH)</a> (uploaded in 15-30 mins)" | xclip -r -sel clip -t text/html
+	@echo "Copied beta release in HTML to clip board"
+
 version:
 	@echo '$(TAG)'
 
@@ -83,13 +88,13 @@ test:	rclone test_all
 
 # Quick test
 quicktest:
-	RCLONE_CONFIG="/notfound" go test $(BUILDTAGS) ./...
+	RCLONE_CONFIG="/notfound" go test $(LDFLAGS) $(BUILDTAGS) ./...
 
 racequicktest:
-	RCLONE_CONFIG="/notfound" go test $(BUILDTAGS) -cpu=2 -race ./...
+	RCLONE_CONFIG="/notfound" go test $(LDFLAGS) $(BUILDTAGS) -cpu=2 -race ./...
 
 compiletest:
-	RCLONE_CONFIG="/notfound" go test $(BUILDTAGS) -run XXX ./...
+	RCLONE_CONFIG="/notfound" go test $(LDFLAGS) $(BUILDTAGS) -run XXX ./...
 
 # Do source code quality checks
 check:	rclone
@@ -99,7 +104,7 @@ check:	rclone
 
 # Get the build dependencies
 build_dep:
-	go run bin/get-github-release.go -extract golangci-lint golangci/golangci-lint 'golangci-lint-.*\.tar\.gz'
+	go run bin/get-github-release.go -use-api -extract golangci-lint golangci/golangci-lint 'golangci-lint-.*\.tar\.gz'
 
 # Get the release dependencies we only install on linux
 release_dep_linux:
@@ -124,47 +129,89 @@ update:
 tidy:
 	GO111MODULE=on go mod tidy
 
-doc:
-	@echo "doc part"
+doc:	rclone.1 MANUAL.html MANUAL.txt rcdocs commanddocs
 
-install: gclone
+rclone.1:	MANUAL.md
+	pandoc -s --from markdown-smart --to man MANUAL.md -o rclone.1
+
+MANUAL.md:	bin/make_manual.py docs/content/*.md commanddocs backenddocs rcdocs
+	./bin/make_manual.py
+
+MANUAL.html:	MANUAL.md
+	pandoc -s --from markdown-smart --to html MANUAL.md -o MANUAL.html
+
+MANUAL.txt:	MANUAL.md
+	pandoc -s --from markdown-smart --to plain MANUAL.md -o MANUAL.txt
+
+commanddocs: rclone
+	-@rmdir -p '$$HOME/.config/rclone'
+	XDG_CACHE_HOME="" XDG_CONFIG_HOME="" HOME="\$$HOME" USER="\$$USER" rclone gendocs --config=/notfound docs/content/
+	@[ ! -e '$$HOME' ] || (echo 'Error: created unwanted directory named $$HOME' && exit 1)
+
+backenddocs: rclone bin/make_backend_docs.py
+	-@rmdir -p '$$HOME/.config/rclone'
+	XDG_CACHE_HOME="" XDG_CONFIG_HOME="" HOME="\$$HOME" USER="\$$USER" ./bin/make_backend_docs.py
+	@[ ! -e '$$HOME' ] || (echo 'Error: created unwanted directory named $$HOME' && exit 1)
+
+rcdocs: rclone
+	bin/make_rc_docs.sh
+
+install: rclone
 	install -d ${DESTDIR}/usr/bin
-	install -t ${DESTDIR}/usr/bin ${GOPATH}/bin/gclone
+	install ${GOPATH}/bin/rclone ${DESTDIR}/usr/bin
 
 clean:
 	go clean ./...
 	find . -name \*~ | xargs -r rm -f
 	rm -rf build docs/public
-	rm -f gclone fs/operations/operations.test fs/sync/sync.test fs/test_all.log test.log
+	rm -f rclone fs/operations/operations.test fs/sync/sync.test fs/test_all.log test.log
 
 website:
+	rm -rf docs/public
+	cd docs && hugo
+	@if grep -R "raw HTML omitted" docs/public ; then echo "ERROR: found unescaped HTML - fix the markdown source" ; fi
 
+upload_website:	website
+	rclone -v sync docs/public www.rclone.org:
+
+upload_test_website:	website
+	rclone -P sync docs/public test-rclone-org:
+
+validate_website: website
+	find docs/public -type f -name "*.html" | xargs tidy --mute-id yes -errors --gnu-emacs yes --drop-empty-elements no --warn-proprietary-attributes no --mute MISMATCHED_ATTRIBUTE_WARN
 
 tarball:
-	git archive -9 --format=tar.gz --prefix=gclone-$(TAG)/ -o build/gclone-$(TAG).tar.gz $(TAG)
+	git archive -9 --format=tar.gz --prefix=rclone-$(TAG)/ -o build/rclone-$(TAG).tar.gz $(TAG)
 
 vendorball:
 	go mod vendor
-	tar -zcf build/gclone-$(TAG)-vendor.tar.gz vendor
+	tar -zcf build/rclone-$(TAG)-vendor.tar.gz vendor
 	rm -rf vendor
 
 sign_upload:
-	cd build && md5sum gclone-v* | gpg --clearsign > MD5SUMS
-	cd build && sha1sum gclone-v* | gpg --clearsign > SHA1SUMS
-	cd build && sha256sum gclone-v* | gpg --clearsign > SHA256SUMS
+	cd build && md5sum rclone-v* | gpg --clearsign > MD5SUMS
+	cd build && sha1sum rclone-v* | gpg --clearsign > SHA1SUMS
+	cd build && sha256sum rclone-v* | gpg --clearsign > SHA256SUMS
 
 check_sign:
 	cd build && gpg --verify MD5SUMS && gpg --decrypt MD5SUMS | md5sum -c
 	cd build && gpg --verify SHA1SUMS && gpg --decrypt SHA1SUMS | sha1sum -c
 	cd build && gpg --verify SHA256SUMS && gpg --decrypt SHA256SUMS | sha256sum -c
 
-upload_github: cross
+upload:
+	rclone -P copy build/ downloads.rclone.org:/$(TAG)
+	rclone lsf build --files-only --include '*.{zip,deb,rpm}' --include version.txt | xargs -i bash -c 'i={}; j="$$i"; [[ $$i =~ (.*)(-v[0-9\.]+-)(.*) ]] && j=$${BASH_REMATCH[1]}-current-$${BASH_REMATCH[3]}; rclone copyto -v "downloads.rclone.org:/$(TAG)/$$i" "downloads.rclone.org:/$$j"'
+
+upload_github:
 	./bin/upload-github $(TAG)
 
 cross:
-	go run bin/cross-compile.go -release "" $(BUILD_FLAGS) $(BUILDTAGS) $(BUILD_ARGS) $(TAG)
+	go run bin/cross-compile.go $(BUILD_FLAGS) $(BUILDTAGS) $(BUILD_ARGS) $(TAG)
 
 beta:
+	go run bin/cross-compile.go $(BUILD_FLAGS) $(BUILDTAGS) $(BUILD_ARGS) $(TAG)
+	rclone -v copy build/ memstore:pub-rclone-org/$(TAG)
+	@echo Beta release ready at https://pub.rclone.org/$(TAG)/
 
 log_since_last_release:
 	git log $(LAST_TAG)..
@@ -175,29 +222,86 @@ compile_all:
 ci_upload:
 	sudo chown -R $$USER build
 	find build -type l -delete
-	gzip -r9v -S .$(TAG).gz build
-	./bin/upload-github $(TAG)
+	gzip -r9v build
+	./rclone --config bin/travis.rclone.conf -v copy build/ $(BETA_UPLOAD)/testbuilds
+ifeq ($(or $(BRANCH_PATH),$(RELEASE_TAG)),)
+	./rclone --config bin/travis.rclone.conf -v copy build/ $(BETA_UPLOAD_ROOT)/test/testbuilds-latest
+endif
+	@echo Beta release ready at $(BETA_URL)/testbuilds
 
 ci_beta:
+	git log $(LAST_TAG).. > /tmp/git-log.txt
+	go run bin/cross-compile.go -release beta-latest -git-log /tmp/git-log.txt $(BUILD_FLAGS) $(BUILDTAGS) $(BUILD_ARGS) $(TAG)
+	rclone --config bin/travis.rclone.conf -v copy --exclude '*beta-latest*' build/ $(BETA_UPLOAD)
+ifeq ($(or $(BRANCH_PATH),$(RELEASE_TAG)),)
+	rclone --config bin/travis.rclone.conf -v copy --include '*beta-latest*' --include version.txt build/ $(BETA_UPLOAD_ROOT)$(BETA_SUBDIR)
+endif
+	@echo Beta release ready at $(BETA_URL)
 
 # Fetch the binary builds from GitHub actions
 fetch_binaries:
+	rclone -P sync --exclude "/testbuilds/**" --delete-excluded $(BETA_UPLOAD) build/
 
-serve:
+serve:	website
+	cd docs && hugo server -v -w --disableFastRender
 
 tag:	retag doc
+	bin/make_changelog.py $(LAST_TAG) $(VERSION) > docs/content/changelog.md.new
+	mv docs/content/changelog.md.new docs/content/changelog.md
+	@echo "Edit the new changelog in docs/content/changelog.md"
+	@echo "Then commit all the changes"
+	@echo git commit -m \"Version $(VERSION)\" -a -v
+	@echo "And finally run make retag before make cross, etc."
 
 retag:
 	@echo "Version is $(VERSION)"
 	git tag -f -s -m "Version $(VERSION)" $(VERSION)
 
 startdev:
+	@echo "Version is $(VERSION)"
+	@echo "Next version is $(NEXT_VERSION)"
+	echo -e "package fs\n\n// VersionTag of rclone\nvar VersionTag = \"$(NEXT_VERSION)\"\n" | gofmt > fs/versiontag.go
+	echo -n "$(NEXT_VERSION)" > docs/layouts/partials/version.html
+	echo "$(NEXT_VERSION)" > VERSION
+	git commit -m "Start $(NEXT_VERSION)-DEV development" fs/versiontag.go VERSION docs/layouts/partials/version.html
 
 startstable:
+	@echo "Version is $(VERSION)"
+	@echo "Next stable version is $(NEXT_PATCH_VERSION)"
+	echo -e "package fs\n\n// VersionTag of rclone\nvar VersionTag = \"$(NEXT_PATCH_VERSION)\"\n" | gofmt > fs/versiontag.go
+	echo -n "$(NEXT_PATCH_VERSION)" > docs/layouts/partials/version.html
+	echo "$(NEXT_PATCH_VERSION)" > VERSION
+	git commit -m "Start $(NEXT_PATCH_VERSION)-DEV development" fs/versiontag.go VERSION docs/layouts/partials/version.html
 
 winzip:
-	zip -9 gclone-$(TAG).zip gclone.exe
+	zip -9 rclone-$(TAG).zip rclone.exe
 
-fixgclonedepmissing:
-	go mod download golang.org/x/mobile
-	go mod download github.com/dop251/scsu
+# docker volume plugin
+PLUGIN_USER ?= rclone
+PLUGIN_TAG ?= latest
+PLUGIN_BASE_TAG ?= latest
+PLUGIN_ARCH ?= amd64
+PLUGIN_IMAGE := $(PLUGIN_USER)/docker-volume-rclone:$(PLUGIN_TAG)
+PLUGIN_BASE := $(PLUGIN_USER)/rclone:$(PLUGIN_BASE_TAG)
+PLUGIN_BUILD_DIR := ./build/docker-plugin
+PLUGIN_CONTRIB_DIR := ./contrib/docker-plugin/managed
+
+docker-plugin-create:
+	docker buildx inspect |grep -q /${PLUGIN_ARCH} || \
+	docker run --rm --privileged tonistiigi/binfmt --install all
+	rm -rf ${PLUGIN_BUILD_DIR}
+	docker buildx build \
+		--no-cache --pull \
+		--build-arg BASE_IMAGE=${PLUGIN_BASE} \
+		--platform linux/${PLUGIN_ARCH} \
+		--output ${PLUGIN_BUILD_DIR}/rootfs \
+		${PLUGIN_CONTRIB_DIR}
+	cp ${PLUGIN_CONTRIB_DIR}/config.json ${PLUGIN_BUILD_DIR}
+	docker plugin rm --force ${PLUGIN_IMAGE} 2>/dev/null || true
+	docker plugin create ${PLUGIN_IMAGE} ${PLUGIN_BUILD_DIR}
+
+docker-plugin-push:
+	docker plugin push ${PLUGIN_IMAGE}
+	docker plugin rm ${PLUGIN_IMAGE}
+
+docker-plugin: docker-plugin-create docker-plugin-push
